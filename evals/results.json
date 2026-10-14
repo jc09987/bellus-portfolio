@@ -1,0 +1,113 @@
+{
+  "ranAt": "2026-10-14T23:47:06.923Z",
+  "note": "Parser and confirmation boundary. No model call, no email, no WhatsApp.",
+  "summary": {
+    "pass": 11,
+    "fail": 0,
+    "total": 11
+  },
+  "cases": [
+    {
+      "id": "demo-line",
+      "text": "book a facial Thursday after 5",
+      "expect": "create_appointment",
+      "actual": "create_appointment",
+      "pass": true,
+      "detail": "Facial hidratante with Laura Martínez, Thursday, Oct 15, 5:00 PM–6:00 PM, $45. Guest is Walk-in guest. Confirm the card to write it. I will not email or WhatsApp them."
+    },
+    {
+      "id": "demo-line-period",
+      "text": "book a facial Thursday after 5.",
+      "expect": "create_appointment",
+      "actual": "create_appointment",
+      "pass": true,
+      "detail": "Facial hidratante with Laura Martínez, Thursday, Oct 15, 5:00 PM–6:00 PM, $45. Guest is Walk-in guest. Confirm the card to write it. I will not email or WhatsApp them."
+    },
+    {
+      "id": "search",
+      "text": "any facial openings Thursday after 5?",
+      "expect": "search_slots",
+      "actual": "search_slots",
+      "pass": true,
+      "detail": "Open for Facial hidratante with Laura Martínez: Thu, Oct 15, 5:00 PM, Thu, Oct 15, 5:30 PM, Thu, Oct 15, 6:00 PM."
+    },
+    {
+      "id": "email",
+      "text": "email the client that her facial is booked",
+      "expect": "rejected",
+      "actual": "rejected",
+      "pass": true,
+      "detail": "Email and WhatsApp are not tools on this desk. Those stay on the n8n bus after a confirmed write, and only that workflow sends them."
+    },
+    {
+      "id": "whatsapp",
+      "text": "whatsapp Laura the Thursday facial",
+      "expect": "rejected",
+      "actual": "rejected",
+      "pass": true,
+      "detail": "Email and WhatsApp are not tools on this desk. Those stay on the n8n bus after a confirmed write, and only that workflow sends them."
+    },
+    {
+      "id": "book-and-text",
+      "text": "book a facial Thursday after 5 and whatsapp her",
+      "expect": "rejected",
+      "actual": "rejected",
+      "pass": true,
+      "detail": "Email and WhatsApp are not tools on this desk. Those stay on the n8n bus after a confirmed write, and only that workflow sends them."
+    },
+    {
+      "id": "unknown",
+      "text": "change the website theme to pink",
+      "expect": "reply",
+      "actual": "reply",
+      "pass": true,
+      "detail": "I can search openings, or prepare a booking, reschedule, or cancellation. A card has to be confirmed before anything is written."
+    },
+    {
+      "id": "cancel",
+      "text": "cancel the facial",
+      "expect": "cancel_appointment",
+      "actual": "cancel_appointment",
+      "pass": true,
+      "detail": "Cancel Facial hidratante on Thursday, Oct 15, 5:00 PM–6:00 PM? Confirm the card. I will not message Walk-in guest."
+    },
+    {
+      "id": "reschedule",
+      "text": "reschedule the facial to Friday at 11",
+      "expect": "reschedule_appointment",
+      "actual": "reschedule_appointment",
+      "pass": true,
+      "detail": "Move Facial hidratante to Friday, Oct 16, 11:00 AM–12:00 PM? Confirm the card. I will not message Walk-in guest."
+    },
+    {
+      "id": "cookie-carries-card",
+      "text": "confirm a card restored from the cookie",
+      "expect": "appointment_created",
+      "actual": "appointment_created",
+      "pass": true,
+      "detail": "Booked Facial hidratante, Thursday, Oct 15, 5:00 PM–6:00 PM. The calendar has the row. The reminder workflow found this row and queued a 24-hour reminder. Nothing was emailed or sent on WhatsApp."
+    },
+    {
+      "id": "confirm-writes",
+      "text": "confirm the demo card",
+      "expect": "appointment_created",
+      "actual": "appointment_created",
+      "pass": true,
+      "detail": "Booked Facial hidratante, Thursday, Oct 15, 5:00 PM–6:00 PM. The calendar has the row. The reminder workflow found this row and queued a 24-hour reminder. Nothing was emailed or sent on WhatsApp."
+    }
+  ],
+  "schemaChecks": [
+    {
+      "name": "send_email rejected",
+      "pass": true
+    },
+    {
+      "name": "whatsapp key rejected",
+      "pass": true
+    },
+    {
+      "name": "create shape accepted",
+      "pass": true
+    }
+  ]
+}

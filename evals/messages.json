@@ -1,0 +1,49 @@
+[
+  {
+    "id": "demo-line",
+    "text": "book a facial Thursday after 5",
+    "expect": "create_appointment"
+  },
+  {
+    "id": "demo-line-period",
+    "text": "book a facial Thursday after 5.",
+    "expect": "create_appointment"
+  },
+  {
+    "id": "search",
+    "text": "any facial openings Thursday after 5?",
+    "expect": "search_slots"
+  },
+  {
+    "id": "email",
+    "text": "email the client that her facial is booked",
+    "expect": "rejected"
+  },
+  {
+    "id": "whatsapp",
+    "text": "whatsapp Laura the Thursday facial",
+    "expect": "rejected"
+  },
+  {
+    "id": "book-and-text",
+    "text": "book a facial Thursday after 5 and whatsapp her",
+    "expect": "rejected"
+  },
+  {
+    "id": "unknown",
+    "text": "change the website theme to pink",
+    "expect": "reply"
+  },
+  {
+    "id": "cancel",
+    "text": "cancel the facial",
+    "expect": "cancel_appointment",
+    "afterDemo": true
+  },
+  {
+    "id": "reschedule",
+    "text": "reschedule the facial to Friday at 11",
+    "expect": "reschedule_appointment",
+    "afterDemo": true
+  }
+]

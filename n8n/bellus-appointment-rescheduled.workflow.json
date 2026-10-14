@@ -1,0 +1,374 @@
+{
+  "name": "Bellus — Cita reprogramada",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bellus-appointment-rescheduled",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-appointment-rescheduled",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "bellus-appointment-rescheduled"
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $json;\nconst configuredSecret = ($env.N8N_WEBHOOK_SECRET || '').trim();\nif (!configuredSecret) {\n  return [{ json: { ok: true, payload, warning: 'N8N_WEBHOOK_SECRET is not set', receivedAt: new Date().toISOString() } }];\n}\nconst headers = payload.headers || payload.header || {};\nconst receivedSecret = headers['x-webhook-secret'] || headers['X-Webhook-Secret'] || '';\nconst ok = receivedSecret === configuredSecret;\nreturn [{ json: { ok, payload, receivedAt: new Date().toISOString(), error: ok ? null : 'invalid_webhook_secret' } }];"
+      },
+      "id": "validate-appointment-rescheduled",
+      "name": "Validate Webhook Secret",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.ok}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-appointment-rescheduled",
+      "name": "Secret Is Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        740,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $json.payload || $json;\nreturn [{\n  json: {\n    workflow: 'bellus-appointment-rescheduled',\n    event: payload.event || 'appointment_rescheduled',\n    appointment: payload.appointment || null,\n    manageUrl: payload.manageUrl || null,\n    previousStartAt: payload.previousStartAt || null,\n    previousEndAt: payload.previousEndAt || null,\n    missingStaffReview: payload.missingStaffReview != null ? payload.missingStaffReview : null,\n    missingLocationReview: payload.missingLocationReview != null ? payload.missingLocationReview : null,\n    sentAt: payload.sentAt || null,\n    receivedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "normalize-appointment-rescheduled",
+      "name": "Normalize Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "channel": "={{$env.N8N_SLACK_CHANNEL || '#alerts'}}",
+        "text": "={{'Bellus appointment_rescheduled | id=' + ($json.appointment?.id || 'n/a') + ' | before=' + ($json.previousStartAt || 'n/a') + ' | after=' + ($json.appointment?.start_at || 'n/a')}}"
+      },
+      "id": "slack-appointment-rescheduled",
+      "name": "Slack Starter Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        180
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.N8N_ALERT_FROM || 'noreply@example.com'}}",
+        "toEmail": "={{$env.N8N_ALERT_TO || 'ops@example.com'}}",
+        "subject": "={{$json.opsSubject}}",
+        "emailFormat": "both",
+        "html": "={{$json.opsHtml}}",
+        "text": "={{$json.opsText}}",
+        "options": {}
+      },
+      "id": "email-appointment-rescheduled",
+      "name": "Email Starter Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1460,
+        180
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.N8N_ALERT_FROM || 'noreply@example.com'}}",
+        "toEmail": "={{$json.appointment?.client_email}}",
+        "subject": "={{$json.clientSubject}}",
+        "emailFormat": "both",
+        "html": "={{$json.clientHtml}}",
+        "text": "={{$json.clientText}}",
+        "options": {}
+      },
+      "id": "email-client-appointment-rescheduled",
+      "name": "Email al cliente",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1700,
+        180
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {},
+      "id": "next-appointment-rescheduled",
+      "name": "Siguiente: SMS/WhatsApp nueva hora",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1940,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    workflow: 'bellus-appointment-rescheduled',\n    severity: 'error',\n    reason: $json.error || 'invalid_webhook_secret',\n    event: ($json.payload && $json.payload.event) || 'appointment_rescheduled',\n    sentAt: ($json.payload && $json.payload.sentAt) || null,\n    receivedAt: new Date().toISOString(),\n    payload: $json.payload || null\n  }\n}];"
+      },
+      "id": "error-appointment-rescheduled",
+      "name": "Build Standard Error Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "channel": "={{$env.N8N_SLACK_CHANNEL || '#alerts'}}",
+        "text": "={{'[ALERT] Bellus webhook rejected: ' + $json.workflow + ' | reason=' + $json.reason}}"
+      },
+      "id": "slack-error-appointment-rescheduled",
+      "name": "Slack Error Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        420
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.N8N_ALERT_FROM || 'noreply@example.com'}}",
+        "toEmail": "={{$env.N8N_ALERT_TO || 'ops@example.com'}}",
+        "subject": "={{$json.errorSubject}}",
+        "emailFormat": "both",
+        "html": "={{$json.errorHtml}}",
+        "text": "={{$json.errorText}}",
+        "options": {}
+      },
+      "id": "email-error-appointment-rescheduled",
+      "name": "Email Error Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1460,
+        420
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {},
+      "id": "stop-appointment-rescheduled",
+      "name": "Stop Unauthorized Event",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1700,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const FONT_HEADING = \"'Playfair Display', Georgia, 'Times New Roman', Times, serif\";\nconst FONT_BODY = \"Lato, Arial, Helvetica, sans-serif\";\nconst FONT_IMPORT =\n  \"@import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');\";\n\nfunction esc(value) {\n  return String(value == null ? \"\" : value)\n    .replace(/&/g, \"&amp;\")\n    .replace(/</g, \"&lt;\")\n    .replace(/>/g, \"&gt;\")\n    .replace(/\"/g, \"&quot;\");\n}\n\nfunction envStr(env, key, fallback) {\n  const raw = env && env[key];\n  const value = raw == null ? \"\" : String(raw).trim();\n  return value || fallback || \"\";\n}\n\nfunction appBase(env) {\n  return envStr(env, \"BELLUS_APP_URL\", envStr(env, \"NEXT_PUBLIC_APP_URL\", \"http://localhost:3000\")).replace(/\\/$/, \"\");\n}\n\nfunction asset(env, path) {\n  return appBase(env) + path;\n}\n\nfunction localeOf(data) {\n  const raw = (data && data.locale) || (data && data.appointment && data.appointment.locale);\n  return raw === \"en\" ? \"en\" : \"es\";\n}\n\nfunction statusLabel(status, locale) {\n  const maps = {\n    es: {\n      pending: \"pendiente\",\n      confirmed: \"confirmada\",\n      cancelled: \"cancelada\",\n      completed: \"completada\",\n      no_show: \"no-show\",\n    },\n    en: {\n      pending: \"pending\",\n      confirmed: \"confirmed\",\n      cancelled: \"cancelled\",\n      completed: \"completed\",\n      no_show: \"no-show\",\n    },\n  };\n  const map = maps[locale] || maps.es;\n  return map[status] || status || \"\";\n}\n\nfunction fmtWhen(iso, locale) {\n  if (!iso) return \"\";\n  const date = new Date(iso);\n  if (Number.isNaN(date.getTime())) return String(iso);\n  const tag = locale === \"en\" ? \"en-CA\" : \"es-CA\";\n  try {\n    return date.toLocaleString(tag, {\n      weekday: \"long\",\n      day: \"numeric\",\n      month: \"long\",\n      year: \"numeric\",\n      hour: \"2-digit\",\n      minute: \"2-digit\",\n    });\n  } catch (e) {\n    return date.toISOString();\n  }\n}\n\nfunction labelsFor(locale) {\n  return locale === \"en\"\n    ? {\n        when: \"When\",\n        until: \"Until\",\n        status: \"Status\",\n        event: \"Event\",\n        appointment: \"Appointment\",\n        client: \"Client\",\n        email: \"Email\",\n        previous: \"Previous\",\n        reason: \"Reason\",\n        destination: \"Destination\",\n        followUs: \"Follow us\",\n        unsubscribe: \"Unsubscribe\",\n        viewInBrowser: \"View in browser\",\n        helloFallback: \"there\",\n        previousFallback: \"the previous time\",\n      }\n    : {\n        when: \"Cuándo\",\n        until: \"Hasta\",\n        status: \"Estado\",\n        event: \"Evento\",\n        appointment: \"Cita\",\n        client: \"Cliente\",\n        email: \"Email\",\n        previous: \"Anterior\",\n        reason: \"Motivo\",\n        destination: \"Destino\",\n        followUs: \"Síguenos\",\n        unsubscribe: \"Cancelar suscripción\",\n        viewInBrowser: \"Ver en el navegador\",\n        helloFallback: \"hola\",\n        previousFallback: \"la hora anterior\",\n      };\n}\n\nfunction socialRow(env, locale) {\n  const base = appBase(env);\n  const items = [\n    [\"N8N_SOCIAL_INSTAGRAM\", \"/brand/social-instagram.png\", \"Instagram\"],\n    [\"N8N_SOCIAL_FACEBOOK\", \"/brand/social-facebook.png\", \"Facebook\"],\n    [\"N8N_SOCIAL_X\", \"/brand/social-x.png\", \"X\"],\n    [\"N8N_SOCIAL_WHATSAPP\", \"/brand/social-whatsapp.png\", \"WhatsApp\"],\n  ].filter(function (row) {\n    return envStr(env, row[0], \"\");\n  });\n  if (!items.length) return \"\";\n  const cells = items\n    .map(function (row) {\n      return (\n        '<td style=\"padding:0 6px;\"><a href=\"' +\n        esc(envStr(env, row[0], \"#\")) +\n        '\" style=\"text-decoration:none;\"><img src=\"' +\n        esc(base + row[1]) +\n        '\" width=\"32\" height=\"32\" alt=\"' +\n        esc(row[2]) +\n        '\" style=\"display:block;border:0;width:32px;height:32px;\"></a></td>'\n      );\n    })\n    .join(\"\");\n  return (\n    '<p style=\"margin:16px 0 8px;font-family:' +\n    FONT_BODY +\n    ';font-size:12px;letter-spacing:1px;color:#593432;text-transform:uppercase;\">' +\n    esc(labelsFor(locale).followUs) +\n    \"</p>\" +\n    '<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" align=\"center\"><tr>' +\n    cells +\n    \"</tr></table>\"\n  );\n}\n\nfunction detailsTable(rows) {\n  const body = rows\n    .filter(function (row) {\n      return row && row[1];\n    })\n    .map(function (row) {\n      return (\n        '<tr><td style=\"padding:7px 0;font-family:' +\n        FONT_BODY +\n        ';font-size:13px;color:#E6C2BF;\">' +\n        esc(row[0]) +\n        '</td><td style=\"padding:7px 0 7px 16px;font-family:' +\n        FONT_BODY +\n        ';font-size:13px;color:#FFFFFF;text-align:right;\">' +\n        esc(row[1]) +\n        \"</td></tr>\"\n      );\n    })\n    .join(\"\");\n  if (!body) return \"\";\n  return '<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:12px 0 4px;\">' + body + \"</table>\";\n}\n\nconst COPY_ES = {\n  appointment_created: {\n    client: {\n      headline: \"Tu cita<br>está lista\",\n      preheader: \"Confirmamos tu reserva en Bellus Lab.\",\n      intro: \"Hola {name}, tu espacio ya está reservado. Te esperamos para un momento de calma y cuidado.\",\n      cta: \"Ver mi reserva\",\n    },\n    ops: { headline: \"Nueva cita\", preheader: \"Se creó una cita en Bellus Lab.\", intro: \"Hay una reserva nueva en el calendario.\", cta: \"Abrir reservas\" },\n  },\n  appointment_updated: {\n    ops: { headline: \"Cita actualizada\", preheader: \"Una cita cambió de estado.\", intro: \"Se actualizó una reserva. Revisa el detalle debajo.\", cta: \"Abrir reservas\" },\n  },\n  appointment_rescheduled: {\n    client: {\n      headline: \"Nueva hora<br>para ti\",\n      preheader: \"Tu cita en Bellus Lab se reprogramó.\",\n      intro: \"Hola {name}, movimos tu cita. La hora anterior era {previous}. La nueva queda así:\",\n      cta: \"Ver mi reserva\",\n    },\n    ops: { headline: \"Cita reprogramada\", preheader: \"Una cita cambió de horario.\", intro: \"Una reserva cambió de fecha u hora.\", cta: \"Abrir reservas\" },\n  },\n  appointment_canceled: {\n    client: {\n      headline: \"Cita<br>cancelada\",\n      preheader: \"Tu cita en Bellus Lab fue cancelada.\",\n      intro: \"Hola {name}, cancelamos tu cita. Si quieres volver, reserva un nuevo horario cuando te venga bien.\",\n      cta: \"Reservar de nuevo\",\n    },\n    ops: { headline: \"Cita cancelada\", preheader: \"Una reserva se canceló.\", intro: \"Se liberó un espacio en el calendario.\", cta: \"Abrir reservas\" },\n  },\n  appointment_completed: {\n    client: {\n      headline: \"Gracias<br>por venir\",\n      preheader: \"Cuenta cómo estuvo tu visita a Bellus Lab.\",\n      intro: \"Hola {name}, esperamos que hayas salido renovada. Tu opinión nos ayuda a cuidar cada detalle.\",\n      cta: \"Valorar mi visita\",\n    },\n    ops: { headline: \"Cita completada\", preheader: \"Una cita se marcó como completada.\", intro: \"La visita terminó. Si falta una valoración, el follow-up saldrá solo.\", cta: \"Abrir reservas\" },\n  },\n  appointment_no_show: {\n    client: {\n      headline: \"Te<br>extrañamos\",\n      preheader: \"No registramos tu asistencia en Bellus Lab.\",\n      intro: \"Hola {name}, no llegaste a tu cita. Si fue un imprevisto, escribe o reserva de nuevo. El espacio te espera.\",\n      cta: \"Reservar de nuevo\",\n    },\n    ops: { headline: \"No-show\", preheader: \"Una cita se marcó como no-show.\", intro: \"La clienta no asistió después de la ventana de gracia.\", cta: \"Abrir reservas\" },\n  },\n  appointment_reminder_24h: {\n    client: {\n      headline: \"Mañana<br>es tu día\",\n      preheader: \"Recordatorio: tu cita en Bellus Lab es mañana.\",\n      intro: \"Hola {name}, te esperamos mañana. Llega con unos minutos de calma; el resto lo hacemos nosotras.\",\n      cta: \"Ver mi reserva\",\n    },\n    ops: { headline: \"Recordatorio 24h\", preheader: \"Se envió un recordatorio de 24h.\", intro: \"Recordatorio automático de cita (24 horas).\", cta: \"Abrir reservas\" },\n  },\n  appointment_reminder_2h: {\n    client: {\n      headline: \"En 2 horas<br>te vemos\",\n      preheader: \"Tu cita en Bellus Lab es en unas 2 horas.\",\n      intro: \"Hola {name}, tu momento Bellus es muy pronto. Si necesitas cambiarla, hazlo ahora desde tus reservas.\",\n      cta: \"Ver mi reserva\",\n    },\n    ops: { headline: \"Recordatorio 2h\", preheader: \"Se envió un recordatorio de 2h.\", intro: \"Recordatorio automático de cita (2 horas).\", cta: \"Abrir reservas\" },\n  },\n  review_followup: {\n    client: {\n      headline: \"¿Cómo estuvo<br>tu visita?\",\n      preheader: \"Valora tu experiencia en Bellus Lab.\",\n      intro: \"Hola {name}, gracias por confiar en nosotras. Una valoración breve nos ayuda a seguir cuidando cada detalle.\",\n      cta: \"Dejar valoración\",\n    },\n    ops: { headline: \"Follow-up review\", preheader: \"Se pidió una valoración al cliente.\", intro: \"Cita completada sin review completa. Se envió el follow-up.\", cta: \"Abrir reservas\" },\n  },\n  payment_success: {\n    client: {\n      headline: \"Pago<br>recibido\",\n      preheader: \"Confirmamos tu pago en Bellus Lab.\",\n      intro: \"Hola {name}, el pago de tu cita se procesó correctamente. Tu lugar ya está asegurado.\",\n      cta: \"Ver mi reserva\",\n    },\n    ops: { headline: \"Pago recibido\", preheader: \"Stripe confirmó un pago.\", intro: \"Se registró un pago exitoso.\", cta: \"Abrir pagos\" },\n  },\n  payment_refunded: {\n    client: {\n      headline: \"Reembolso<br>listo\",\n      preheader: \"Procesamos el reembolso de tu cita.\",\n      intro: \"Hola {name}, el reembolso ya está en camino. Según tu banco, puede tardar unos días en verse.\",\n      cta: \"Ver mi reserva\",\n    },\n    ops: { headline: \"Pago reembolsado\", preheader: \"Se reembolsó un pago.\", intro: \"Stripe reportó un reembolso.\", cta: \"Abrir pagos\" },\n  },\n  webhook_delivery_failed: {\n    ops: { headline: \"Webhook fallido\", preheader: \"n8n no pudo entregar un evento.\", intro: \"Falló la entrega de un webhook. Revisa el destino y reintenta si hace falta.\", cta: \"Abrir app\" },\n  },\n};\n\nconst COPY_EN = {\n  appointment_created: {\n    client: {\n      headline: \"Your appointment<br>is set\",\n      preheader: \"We confirmed your booking at Bellus Lab.\",\n      intro: \"Hi {name}, your time is reserved. We look forward to a calm, cared-for visit.\",\n      cta: \"Manage my booking\",\n    },\n  },\n  appointment_rescheduled: {\n    client: {\n      headline: \"A new time<br>for you\",\n      preheader: \"Your Bellus Lab appointment was rescheduled.\",\n      intro: \"Hi {name}, we moved your appointment. The previous time was {previous}. Here is the new one:\",\n      cta: \"Manage my booking\",\n    },\n  },\n  appointment_canceled: {\n    client: {\n      headline: \"Appointment<br>cancelled\",\n      preheader: \"Your Bellus Lab appointment was cancelled.\",\n      intro: \"Hi {name}, we cancelled your appointment. When you are ready, book a new time that works for you.\",\n      cta: \"Book again\",\n    },\n  },\n  appointment_completed: {\n    client: {\n      headline: \"Thank you<br>for coming\",\n      preheader: \"Tell us how your visit to Bellus Lab went.\",\n      intro: \"Hi {name}, we hope you left feeling renewed. Your feedback helps us care for every detail.\",\n      cta: \"Rate my visit\",\n    },\n  },\n  appointment_no_show: {\n    client: {\n      headline: \"We missed<br>you\",\n      preheader: \"We did not register your visit at Bellus Lab.\",\n      intro: \"Hi {name}, you did not make it to your appointment. If something came up, write to us or book again. Your space is waiting.\",\n      cta: \"Book again\",\n    },\n  },\n  appointment_reminder_24h: {\n    client: {\n      headline: \"Tomorrow<br>is your day\",\n      preheader: \"Reminder: your Bellus Lab appointment is tomorrow.\",\n      intro: \"Hi {name}, we look forward to seeing you tomorrow. Arrive a few minutes early; we will take care of the rest.\",\n      cta: \"Manage my booking\",\n    },\n  },\n  appointment_reminder_2h: {\n    client: {\n      headline: \"See you<br>in 2 hours\",\n      preheader: \"Your Bellus Lab appointment is in about 2 hours.\",\n      intro: \"Hi {name}, your Bellus moment is almost here. If you need to change it, do it now from your bookings.\",\n      cta: \"Manage my booking\",\n    },\n  },\n  review_followup: {\n    client: {\n      headline: \"How was<br>your visit?\",\n      preheader: \"Rate your experience at Bellus Lab.\",\n      intro: \"Hi {name}, thank you for trusting us. A short review helps us keep caring for every detail.\",\n      cta: \"Leave a review\",\n    },\n  },\n  payment_success: {\n    client: {\n      headline: \"Payment<br>received\",\n      preheader: \"We confirmed your payment at Bellus Lab.\",\n      intro: \"Hi {name}, the payment for your appointment went through. Your spot is reserved.\",\n      cta: \"Manage my booking\",\n    },\n  },\n  payment_refunded: {\n    client: {\n      headline: \"Refund<br>on the way\",\n      preheader: \"We processed the refund for your appointment.\",\n      intro: \"Hi {name}, your refund is on its way. Depending on your bank, it may take a few days to appear.\",\n      cta: \"Manage my booking\",\n    },\n  },\n};\n\nconst FALLBACK = {\n  es: {\n    client: { headline: \"Bellus Lab\", preheader: \"Un aviso de Bellus Lab.\", intro: \"Hola {name}, tienes una actualización de tu cita.\", cta: \"Ver mi reserva\" },\n    ops: { headline: \"Aviso Bellus\", preheader: \"Evento de Bellus Lab.\", intro: \"Hay una actualización operativa.\", cta: \"Abrir app\" },\n    error: { headline: \"Alerta\", preheader: \"Falló un flujo de Bellus Lab.\", intro: \"Algo no se pudo completar. Revisa el detalle y el secreto del webhook si aplica.\", cta: \"Abrir app\" },\n  },\n  en: {\n    client: { headline: \"Bellus Lab\", preheader: \"A note from Bellus Lab.\", intro: \"Hi {name}, you have an update about your appointment.\", cta: \"Manage my booking\" },\n    ops: { headline: \"Bellus notice\", preheader: \"Bellus Lab event.\", intro: \"There is an operational update.\", cta: \"Open app\" },\n    error: { headline: \"Alert\", preheader: \"A Bellus Lab workflow failed.\", intro: \"Something could not be completed. Check the details and the webhook secret if needed.\", cta: \"Open app\" },\n  },\n};\n\nfunction copyFor(event, kind, locale) {\n  const catalog = locale === \"en\" && kind === \"client\" ? COPY_EN : COPY_ES;\n  const fallback = FALLBACK[locale] || FALLBACK.es;\n  const entry = catalog[event] || {};\n  return entry[kind] || (COPY_ES[event] && COPY_ES[event][kind]) || fallback[kind] || fallback.ops;\n}\n\nfunction appointmentFrom(data) {\n  return (data && data.appointment) || {};\n}\n\nfunction fillIntro(template, data, locale) {\n  const apt = appointmentFrom(data);\n  const labels = labelsFor(locale);\n  return template\n    .replace(/\\{name\\}/g, apt.client_name || labels.helloFallback)\n    .replace(/\\{previous\\}/g, fmtWhen(data && data.previousStartAt, locale) || labels.previousFallback);\n}\n\nfunction buildBellusEmail(env, data, kind) {\n  const apt = appointmentFrom(data);\n  const event = (data && (data.event || data.workflow)) || \"\";\n  const isError = kind === \"error\";\n  const locale = kind === \"client\" ? localeOf(data) : \"es\";\n  const labels = labelsFor(locale);\n  const copy = copyFor(isError ? \"error\" : event, isError ? \"error\" : kind, locale);\n  const headline = copy.headline;\n  const preheader = copy.preheader;\n  const intro = fillIntro(copy.intro, data, locale);\n  const ctaLabel = copy.cta;\n  const url =\n    isError\n      ? appBase(env)\n      : kind === \"ops\" && (event === \"payment_success\" || event === \"payment_refunded\")\n        ? appBase(env) + \"/crm/payments\"\n        : (data && data.manageUrl) || appBase(env) + \"/reservas\";\n  const name = apt.client_name || \"Bellus Lab\";\n  const subjectBase = headline.replace(/<br>/g, \" \").replace(/\\s+/g, \" \").trim();\n  const subject =\n    kind === \"client\"\n      ? subjectBase + \" · Bellus Lab\"\n      : isError\n        ? \"[Bellus][ERROR] \" + ((data && data.reason) || (data && data.workflow) || \"alerta\")\n        : \"[Bellus] \" + (event || \"aviso\") + (apt.id ? \" \" + apt.id : \"\");\n\n  const detailRows =\n    kind === \"client\"\n      ? [\n          [labels.when, fmtWhen(apt.start_at, locale)],\n          [labels.until, fmtWhen(apt.end_at, locale)],\n          [labels.status, statusLabel(apt.status, locale)],\n        ]\n      : [\n          [labels.event, event || (data && data.workflow)],\n          [labels.appointment, apt.id],\n          [labels.client, apt.client_name],\n          [labels.email, apt.client_email],\n          [labels.when, fmtWhen(apt.start_at, locale)],\n          [labels.status, statusLabel(apt.status, locale)],\n          [labels.previous, fmtWhen(data && data.previousStartAt, locale)],\n          [labels.reason, data && (data.reason || data.errorMessage)],\n          [labels.destination, data && data.targetWebhook],\n        ];\n\n  const extraNote =\n    kind === \"client\"\n      ? \"\"\n      : isError\n        ? '<p style=\"margin:16px 0 0;font-family:' +\n          FONT_BODY +\n          ';font-size:13px;line-height:1.55;color:#FFFFFF;\">' +\n          esc((data && (data.reason || data.error || data.errorMessage)) || \"Error no especificado.\") +\n          \"</p>\"\n        : \"\";\n\n  const logo = asset(env, \"/brand/logo-email-light.png\");\n  const footerLogo = asset(env, \"/brand/logo-email-footer.png\");\n  const hero = asset(env, \"/brand/email-hero.png\");\n  const diamond = asset(env, \"/brand/email-diamond.png\");\n  const address = envStr(env, \"N8N_STUDIO_ADDRESS\", \"Bellus Lab\");\n  const unsub = envStr(env, \"N8N_UNSUBSCRIBE_URL\", url);\n\n  const html =\n    '<!DOCTYPE html><html lang=\"' +\n    locale +\n    '\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>' +\n    esc(subjectBase) +\n    \"</title><style>\" +\n    FONT_IMPORT +\n    \"</style></head>\" +\n    '<body style=\"margin:0;padding:0;background:#F3E8E6;\">' +\n    '<div style=\"display:none;max-height:0;overflow:hidden;opacity:0;color:#F3E8E6;\">' +\n    esc(preheader) +\n    \"</div>\" +\n    '<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" bgcolor=\"#F3E8E6\"><tr><td align=\"center\" style=\"padding:28px 12px;\">' +\n    '<table role=\"presentation\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:600px;max-width:600px;background-color:#1A1412;background-image:linear-gradient(180deg,#1A1412 0%,#3B2321 42%,#E6C2BF 100%);\">' +\n    '<tr><td align=\"center\" style=\"padding:40px 28px 8px;\"><a href=\"' +\n    esc(appBase(env)) +\n    '\" style=\"text-decoration:none;\"><img src=\"' +\n    esc(logo) +\n    '\" width=\"200\" alt=\"belluslab.\" style=\"display:block;border:0;width:200px;height:auto;\"></a></td></tr>' +\n    '<tr><td align=\"center\" style=\"padding:12px 32px 10px;font-family:' +\n    FONT_HEADING +\n    ';font-size:42px;line-height:1.15;letter-spacing:0.2px;color:#FFFFFF;font-weight:700;\">' +\n    headline +\n    \"</td></tr>\" +\n    '<tr><td align=\"center\" style=\"padding:8px 24px 4px;\"><img src=\"' +\n    esc(hero) +\n    '\" width=\"552\" alt=\"\" style=\"display:block;border:0;width:100%;max-width:552px;height:auto;border-radius:8px;\"></td></tr>' +\n    '<tr><td style=\"padding:22px 48px 6px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tr>' +\n    '<td style=\"border-top:1px solid #E6C2BF;font-size:0;line-height:0;\">&nbsp;</td>' +\n    '<td width=\"28\" align=\"center\" style=\"padding:0 8px;\"><img src=\"' +\n    esc(diamond) +\n    '\" width=\"14\" height=\"14\" alt=\"\" style=\"display:block;border:0;\"></td>' +\n    '<td style=\"border-top:1px solid #E6C2BF;font-size:0;line-height:0;\">&nbsp;</td>' +\n    \"</tr></table></td></tr>\" +\n    '<tr><td align=\"center\" style=\"padding:10px 48px 6px;font-family:' +\n    FONT_BODY +\n    ';font-size:16px;line-height:1.65;color:#FFFFFF;\">' +\n    esc(intro).replace(esc(name), \"<strong>\" + esc(name) + \"</strong>\") +\n    extraNote +\n    detailsTable(detailRows) +\n    \"</td></tr>\" +\n    '<tr><td align=\"center\" style=\"padding:18px 48px 36px;\"><table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\"><tr><td align=\"center\" bgcolor=\"#1A1412\" style=\"border-radius:28px;border:1px solid #B88917;\">' +\n    '<a href=\"' +\n    esc(url) +\n    '\" style=\"display:inline-block;padding:14px 34px;font-family:' +\n    FONT_BODY +\n    ';font-size:13px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#FFFFFF;text-decoration:none;\">' +\n    esc(ctaLabel) +\n    \"</a></td></tr></table></td></tr>\" +\n    '<tr><td align=\"center\" bgcolor=\"#FFFFFD\" style=\"padding:28px 24px 10px;\"><img src=\"' +\n    esc(footerLogo) +\n    '\" width=\"168\" alt=\"belluslab.\" style=\"display:block;border:0;width:168px;height:auto;\">' +\n    socialRow(env, locale) +\n    \"</td></tr>\" +\n    '<tr><td align=\"center\" bgcolor=\"#FFFFFD\" style=\"padding:8px 28px 28px;font-family:' +\n    FONT_BODY +\n    ';font-size:11px;line-height:1.6;color:#774440;\">' +\n    esc(address) +\n    '<br><a href=\"' +\n    esc(unsub) +\n    '\" style=\"color:#774440;text-decoration:underline;\">' +\n    esc(labels.unsubscribe) +\n    '</a> &nbsp;|&nbsp; <a href=\"' +\n    esc(url) +\n    '\" style=\"color:#774440;text-decoration:underline;\">' +\n    esc(labels.viewInBrowser) +\n    \"</a></td></tr>\" +\n    \"</table></td></tr></table></body></html>\";\n\n  const text = [subjectBase, \"\", intro.replace(/<br>/g, \" \"), fmtWhen(apt.start_at, locale), url, \"\", \"belluslab.\"].filter(Boolean).join(\"\\n\");\n  return { html: html, text: text, subject: subject };\n}\n\nfunction decoratePayload(env, data) {\n  const client = buildBellusEmail(env, data, \"client\");\n  const ops = buildBellusEmail(env, data, \"ops\");\n  const error = buildBellusEmail(env, Object.assign({}, data, { event: data.event || \"error\" }), \"error\");\n  return Object.assign({}, data, {\n    clientHtml: client.html,\n    clientText: client.text,\n    clientSubject: client.subject,\n    opsHtml: ops.html,\n    opsText: ops.text,\n    opsSubject: ops.subject,\n    errorHtml: error.html,\n    errorText: error.text,\n    errorSubject: error.subject,\n  });\n}\n\n\nconst env = {\n  BELLUS_APP_URL: $env.BELLUS_APP_URL,\n  NEXT_PUBLIC_APP_URL: $env.NEXT_PUBLIC_APP_URL,\n  N8N_SOCIAL_INSTAGRAM: $env.N8N_SOCIAL_INSTAGRAM,\n  N8N_SOCIAL_FACEBOOK: $env.N8N_SOCIAL_FACEBOOK,\n  N8N_SOCIAL_X: $env.N8N_SOCIAL_X,\n  N8N_SOCIAL_WHATSAPP: $env.N8N_SOCIAL_WHATSAPP,\n  N8N_STUDIO_ADDRESS: $env.N8N_STUDIO_ADDRESS,\n  N8N_UNSUBSCRIBE_URL: $env.N8N_UNSUBSCRIBE_URL\n};\nreturn [{ json: decoratePayload(env, $json) }];"
+      },
+      "id": "build-email-bellus-appointment-rescheduled",
+      "name": "Build branded email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const FONT_HEADING = \"'Playfair Display', Georgia, 'Times New Roman', Times, serif\";\nconst FONT_BODY = \"Lato, Arial, Helvetica, sans-serif\";\nconst FONT_IMPORT =\n  \"@import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');\";\n\nfunction esc(value) {\n  return String(value == null ? \"\" : value)\n    .replace(/&/g, \"&amp;\")\n    .replace(/</g, \"&lt;\")\n    .replace(/>/g, \"&gt;\")\n    .replace(/\"/g, \"&quot;\");\n}\n\nfunction envStr(env, key, fallback) {\n  const raw = env && env[key];\n  const value = raw == null ? \"\" : String(raw).trim();\n  return value || fallback || \"\";\n}\n\nfunction appBase(env) {\n  return envStr(env, \"BELLUS_APP_URL\", envStr(env, \"NEXT_PUBLIC_APP_URL\", \"http://localhost:3000\")).replace(/\\/$/, \"\");\n}\n\nfunction asset(env, path) {\n  return appBase(env) + path;\n}\n\nfunction localeOf(data) {\n  const raw = (data && data.locale) || (data && data.appointment && data.appointment.locale);\n  return raw === \"en\" ? \"en\" : \"es\";\n}\n\nfunction statusLabel(status, locale) {\n  const maps = {\n    es: {\n      pending: \"pendiente\",\n      confirmed: \"confirmada\",\n      cancelled: \"cancelada\",\n      completed: \"completada\",\n      no_show: \"no-show\",\n    },\n    en: {\n      pending: \"pending\",\n      confirmed: \"confirmed\",\n      cancelled: \"cancelled\",\n      completed: \"completed\",\n      no_show: \"no-show\",\n    },\n  };\n  const map = maps[locale] || maps.es;\n  return map[status] || status || \"\";\n}\n\nfunction fmtWhen(iso, locale) {\n  if (!iso) return \"\";\n  const date = new Date(iso);\n  if (Number.isNaN(date.getTime())) return String(iso);\n  const tag = locale === \"en\" ? \"en-CA\" : \"es-CA\";\n  try {\n    return date.toLocaleString(tag, {\n      weekday: \"long\",\n      day: \"numeric\",\n      month: \"long\",\n      year: \"numeric\",\n      hour: \"2-digit\",\n      minute: \"2-digit\",\n    });\n  } catch (e) {\n    return date.toISOString();\n  }\n}\n\nfunction labelsFor(locale) {\n  return locale === \"en\"\n    ? {\n        when: \"When\",\n        until: \"Until\",\n        status: \"Status\",\n        event: \"Event\",\n        appointment: \"Appointment\",\n        client: \"Client\",\n        email: \"Email\",\n        previous: \"Previous\",\n        reason: \"Reason\",\n        destination: \"Destination\",\n        followUs: \"Follow us\",\n        unsubscribe: \"Unsubscribe\",\n        viewInBrowser: \"View in browser\",\n        helloFallback: \"there\",\n        previousFallback: \"the previous time\",\n      }\n    : {\n        when: \"Cuándo\",\n        until: \"Hasta\",\n        status: \"Estado\",\n        event: \"Evento\",\n        appointment: \"Cita\",\n        client: \"Cliente\",\n        email: \"Email\",\n        previous: \"Anterior\",\n        reason: \"Motivo\",\n        destination: \"Destino\",\n        followUs: \"Síguenos\",\n        unsubscribe: \"Cancelar suscripción\",\n        viewInBrowser: \"Ver en el navegador\",\n        helloFallback: \"hola\",\n        previousFallback: \"la hora anterior\",\n      };\n}\n\nfunction socialRow(env, locale) {\n  const base = appBase(env);\n  const items = [\n    [\"N8N_SOCIAL_INSTAGRAM\", \"/brand/social-instagram.png\", \"Instagram\"],\n    [\"N8N_SOCIAL_FACEBOOK\", \"/brand/social-facebook.png\", \"Facebook\"],\n    [\"N8N_SOCIAL_X\", \"/brand/social-x.png\", \"X\"],\n    [\"N8N_SOCIAL_WHATSAPP\", \"/brand/social-whatsapp.png\", \"WhatsApp\"],\n  ].filter(function (row) {\n    return envStr(env, row[0], \"\");\n  });\n  if (!items.length) return \"\";\n  const cells = items\n    .map(function (row) {\n      return (\n        '<td style=\"padding:0 6px;\"><a href=\"' +\n        esc(envStr(env, row[0], \"#\")) +\n        '\" style=\"text-decoration:none;\"><img src=\"' +\n        esc(base + row[1]) +\n        '\" width=\"32\" height=\"32\" alt=\"' +\n        esc(row[2]) +\n        '\" style=\"display:block;border:0;width:32px;height:32px;\"></a></td>'\n      );\n    })\n    .join(\"\");\n  return (\n    '<p style=\"margin:16px 0 8px;font-family:' +\n    FONT_BODY +\n    ';font-size:12px;letter-spacing:1px;color:#593432;text-transform:uppercase;\">' +\n    esc(labelsFor(locale).followUs) +\n    \"</p>\" +\n    '<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" align=\"center\"><tr>' +\n    cells +\n    \"</tr></table>\"\n  );\n}\n\nfunction detailsTable(rows) {\n  const body = rows\n    .filter(function (row) {\n      return row && row[1];\n    })\n    .map(function (row) {\n      return (\n        '<tr><td style=\"padding:7px 0;font-family:' +\n        FONT_BODY +\n        ';font-size:13px;color:#E6C2BF;\">' +\n        esc(row[0]) +\n        '</td><td style=\"padding:7px 0 7px 16px;font-family:' +\n        FONT_BODY +\n        ';font-size:13px;color:#FFFFFF;text-align:right;\">' +\n        esc(row[1]) +\n        \"</td></tr>\"\n      );\n    })\n    .join(\"\");\n  if (!body) return \"\";\n  return '<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:12px 0 4px;\">' + body + \"</table>\";\n}\n\nconst COPY_ES = {\n  appointment_created: {\n    client: {\n      headline: \"Tu cita<br>está lista\",\n      preheader: \"Confirmamos tu reserva en Bellus Lab.\",\n      intro: \"Hola {name}, tu espacio ya está reservado. Te esperamos para un momento de calma y cuidado.\",\n      cta: \"Ver mi reserva\",\n    },\n    ops: { headline: \"Nueva cita\", preheader: \"Se creó una cita en Bellus Lab.\", intro: \"Hay una reserva nueva en el calendario.\", cta: \"Abrir reservas\" },\n  },\n  appointment_updated: {\n    ops: { headline: \"Cita actualizada\", preheader: \"Una cita cambió de estado.\", intro: \"Se actualizó una reserva. Revisa el detalle debajo.\", cta: \"Abrir reservas\" },\n  },\n  appointment_rescheduled: {\n    client: {\n      headline: \"Nueva hora<br>para ti\",\n      preheader: \"Tu cita en Bellus Lab se reprogramó.\",\n      intro: \"Hola {name}, movimos tu cita. La hora anterior era {previous}. La nueva queda así:\",\n      cta: \"Ver mi reserva\",\n    },\n    ops: { headline: \"Cita reprogramada\", preheader: \"Una cita cambió de horario.\", intro: \"Una reserva cambió de fecha u hora.\", cta: \"Abrir reservas\" },\n  },\n  appointment_canceled: {\n    client: {\n      headline: \"Cita<br>cancelada\",\n      preheader: \"Tu cita en Bellus Lab fue cancelada.\",\n      intro: \"Hola {name}, cancelamos tu cita. Si quieres volver, reserva un nuevo horario cuando te venga bien.\",\n      cta: \"Reservar de nuevo\",\n    },\n    ops: { headline: \"Cita cancelada\", preheader: \"Una reserva se canceló.\", intro: \"Se liberó un espacio en el calendario.\", cta: \"Abrir reservas\" },\n  },\n  appointment_completed: {\n    client: {\n      headline: \"Gracias<br>por venir\",\n      preheader: \"Cuenta cómo estuvo tu visita a Bellus Lab.\",\n      intro: \"Hola {name}, esperamos que hayas salido renovada. Tu opinión nos ayuda a cuidar cada detalle.\",\n      cta: \"Valorar mi visita\",\n    },\n    ops: { headline: \"Cita completada\", preheader: \"Una cita se marcó como completada.\", intro: \"La visita terminó. Si falta una valoración, el follow-up saldrá solo.\", cta: \"Abrir reservas\" },\n  },\n  appointment_no_show: {\n    client: {\n      headline: \"Te<br>extrañamos\",\n      preheader: \"No registramos tu asistencia en Bellus Lab.\",\n      intro: \"Hola {name}, no llegaste a tu cita. Si fue un imprevisto, escribe o reserva de nuevo. El espacio te espera.\",\n      cta: \"Reservar de nuevo\",\n    },\n    ops: { headline: \"No-show\", preheader: \"Una cita se marcó como no-show.\", intro: \"La clienta no asistió después de la ventana de gracia.\", cta: \"Abrir reservas\" },\n  },\n  appointment_reminder_24h: {\n    client: {\n      headline: \"Mañana<br>es tu día\",\n      preheader: \"Recordatorio: tu cita en Bellus Lab es mañana.\",\n      intro: \"Hola {name}, te esperamos mañana. Llega con unos minutos de calma; el resto lo hacemos nosotras.\",\n      cta: \"Ver mi reserva\",\n    },\n    ops: { headline: \"Recordatorio 24h\", preheader: \"Se envió un recordatorio de 24h.\", intro: \"Recordatorio automático de cita (24 horas).\", cta: \"Abrir reservas\" },\n  },\n  appointment_reminder_2h: {\n    client: {\n      headline: \"En 2 horas<br>te vemos\",\n      preheader: \"Tu cita en Bellus Lab es en unas 2 horas.\",\n      intro: \"Hola {name}, tu momento Bellus es muy pronto. Si necesitas cambiarla, hazlo ahora desde tus reservas.\",\n      cta: \"Ver mi reserva\",\n    },\n    ops: { headline: \"Recordatorio 2h\", preheader: \"Se envió un recordatorio de 2h.\", intro: \"Recordatorio automático de cita (2 horas).\", cta: \"Abrir reservas\" },\n  },\n  review_followup: {\n    client: {\n      headline: \"¿Cómo estuvo<br>tu visita?\",\n      preheader: \"Valora tu experiencia en Bellus Lab.\",\n      intro: \"Hola {name}, gracias por confiar en nosotras. Una valoración breve nos ayuda a seguir cuidando cada detalle.\",\n      cta: \"Dejar valoración\",\n    },\n    ops: { headline: \"Follow-up review\", preheader: \"Se pidió una valoración al cliente.\", intro: \"Cita completada sin review completa. Se envió el follow-up.\", cta: \"Abrir reservas\" },\n  },\n  payment_success: {\n    client: {\n      headline: \"Pago<br>recibido\",\n      preheader: \"Confirmamos tu pago en Bellus Lab.\",\n      intro: \"Hola {name}, el pago de tu cita se procesó correctamente. Tu lugar ya está asegurado.\",\n      cta: \"Ver mi reserva\",\n    },\n    ops: { headline: \"Pago recibido\", preheader: \"Stripe confirmó un pago.\", intro: \"Se registró un pago exitoso.\", cta: \"Abrir pagos\" },\n  },\n  payment_refunded: {\n    client: {\n      headline: \"Reembolso<br>listo\",\n      preheader: \"Procesamos el reembolso de tu cita.\",\n      intro: \"Hola {name}, el reembolso ya está en camino. Según tu banco, puede tardar unos días en verse.\",\n      cta: \"Ver mi reserva\",\n    },\n    ops: { headline: \"Pago reembolsado\", preheader: \"Se reembolsó un pago.\", intro: \"Stripe reportó un reembolso.\", cta: \"Abrir pagos\" },\n  },\n  webhook_delivery_failed: {\n    ops: { headline: \"Webhook fallido\", preheader: \"n8n no pudo entregar un evento.\", intro: \"Falló la entrega de un webhook. Revisa el destino y reintenta si hace falta.\", cta: \"Abrir app\" },\n  },\n};\n\nconst COPY_EN = {\n  appointment_created: {\n    client: {\n      headline: \"Your appointment<br>is set\",\n      preheader: \"We confirmed your booking at Bellus Lab.\",\n      intro: \"Hi {name}, your time is reserved. We look forward to a calm, cared-for visit.\",\n      cta: \"Manage my booking\",\n    },\n  },\n  appointment_rescheduled: {\n    client: {\n      headline: \"A new time<br>for you\",\n      preheader: \"Your Bellus Lab appointment was rescheduled.\",\n      intro: \"Hi {name}, we moved your appointment. The previous time was {previous}. Here is the new one:\",\n      cta: \"Manage my booking\",\n    },\n  },\n  appointment_canceled: {\n    client: {\n      headline: \"Appointment<br>cancelled\",\n      preheader: \"Your Bellus Lab appointment was cancelled.\",\n      intro: \"Hi {name}, we cancelled your appointment. When you are ready, book a new time that works for you.\",\n      cta: \"Book again\",\n    },\n  },\n  appointment_completed: {\n    client: {\n      headline: \"Thank you<br>for coming\",\n      preheader: \"Tell us how your visit to Bellus Lab went.\",\n      intro: \"Hi {name}, we hope you left feeling renewed. Your feedback helps us care for every detail.\",\n      cta: \"Rate my visit\",\n    },\n  },\n  appointment_no_show: {\n    client: {\n      headline: \"We missed<br>you\",\n      preheader: \"We did not register your visit at Bellus Lab.\",\n      intro: \"Hi {name}, you did not make it to your appointment. If something came up, write to us or book again. Your space is waiting.\",\n      cta: \"Book again\",\n    },\n  },\n  appointment_reminder_24h: {\n    client: {\n      headline: \"Tomorrow<br>is your day\",\n      preheader: \"Reminder: your Bellus Lab appointment is tomorrow.\",\n      intro: \"Hi {name}, we look forward to seeing you tomorrow. Arrive a few minutes early; we will take care of the rest.\",\n      cta: \"Manage my booking\",\n    },\n  },\n  appointment_reminder_2h: {\n    client: {\n      headline: \"See you<br>in 2 hours\",\n      preheader: \"Your Bellus Lab appointment is in about 2 hours.\",\n      intro: \"Hi {name}, your Bellus moment is almost here. If you need to change it, do it now from your bookings.\",\n      cta: \"Manage my booking\",\n    },\n  },\n  review_followup: {\n    client: {\n      headline: \"How was<br>your visit?\",\n      preheader: \"Rate your experience at Bellus Lab.\",\n      intro: \"Hi {name}, thank you for trusting us. A short review helps us keep caring for every detail.\",\n      cta: \"Leave a review\",\n    },\n  },\n  payment_success: {\n    client: {\n      headline: \"Payment<br>received\",\n      preheader: \"We confirmed your payment at Bellus Lab.\",\n      intro: \"Hi {name}, the payment for your appointment went through. Your spot is reserved.\",\n      cta: \"Manage my booking\",\n    },\n  },\n  payment_refunded: {\n    client: {\n      headline: \"Refund<br>on the way\",\n      preheader: \"We processed the refund for your appointment.\",\n      intro: \"Hi {name}, your refund is on its way. Depending on your bank, it may take a few days to appear.\",\n      cta: \"Manage my booking\",\n    },\n  },\n};\n\nconst FALLBACK = {\n  es: {\n    client: { headline: \"Bellus Lab\", preheader: \"Un aviso de Bellus Lab.\", intro: \"Hola {name}, tienes una actualización de tu cita.\", cta: \"Ver mi reserva\" },\n    ops: { headline: \"Aviso Bellus\", preheader: \"Evento de Bellus Lab.\", intro: \"Hay una actualización operativa.\", cta: \"Abrir app\" },\n    error: { headline: \"Alerta\", preheader: \"Falló un flujo de Bellus Lab.\", intro: \"Algo no se pudo completar. Revisa el detalle y el secreto del webhook si aplica.\", cta: \"Abrir app\" },\n  },\n  en: {\n    client: { headline: \"Bellus Lab\", preheader: \"A note from Bellus Lab.\", intro: \"Hi {name}, you have an update about your appointment.\", cta: \"Manage my booking\" },\n    ops: { headline: \"Bellus notice\", preheader: \"Bellus Lab event.\", intro: \"There is an operational update.\", cta: \"Open app\" },\n    error: { headline: \"Alert\", preheader: \"A Bellus Lab workflow failed.\", intro: \"Something could not be completed. Check the details and the webhook secret if needed.\", cta: \"Open app\" },\n  },\n};\n\nfunction copyFor(event, kind, locale) {\n  const catalog = locale === \"en\" && kind === \"client\" ? COPY_EN : COPY_ES;\n  const fallback = FALLBACK[locale] || FALLBACK.es;\n  const entry = catalog[event] || {};\n  return entry[kind] || (COPY_ES[event] && COPY_ES[event][kind]) || fallback[kind] || fallback.ops;\n}\n\nfunction appointmentFrom(data) {\n  return (data && data.appointment) || {};\n}\n\nfunction fillIntro(template, data, locale) {\n  const apt = appointmentFrom(data);\n  const labels = labelsFor(locale);\n  return template\n    .replace(/\\{name\\}/g, apt.client_name || labels.helloFallback)\n    .replace(/\\{previous\\}/g, fmtWhen(data && data.previousStartAt, locale) || labels.previousFallback);\n}\n\nfunction buildBellusEmail(env, data, kind) {\n  const apt = appointmentFrom(data);\n  const event = (data && (data.event || data.workflow)) || \"\";\n  const isError = kind === \"error\";\n  const locale = kind === \"client\" ? localeOf(data) : \"es\";\n  const labels = labelsFor(locale);\n  const copy = copyFor(isError ? \"error\" : event, isError ? \"error\" : kind, locale);\n  const headline = copy.headline;\n  const preheader = copy.preheader;\n  const intro = fillIntro(copy.intro, data, locale);\n  const ctaLabel = copy.cta;\n  const url =\n    isError\n      ? appBase(env)\n      : kind === \"ops\" && (event === \"payment_success\" || event === \"payment_refunded\")\n        ? appBase(env) + \"/crm/payments\"\n        : (data && data.manageUrl) || appBase(env) + \"/reservas\";\n  const name = apt.client_name || \"Bellus Lab\";\n  const subjectBase = headline.replace(/<br>/g, \" \").replace(/\\s+/g, \" \").trim();\n  const subject =\n    kind === \"client\"\n      ? subjectBase + \" · Bellus Lab\"\n      : isError\n        ? \"[Bellus][ERROR] \" + ((data && data.reason) || (data && data.workflow) || \"alerta\")\n        : \"[Bellus] \" + (event || \"aviso\") + (apt.id ? \" \" + apt.id : \"\");\n\n  const detailRows =\n    kind === \"client\"\n      ? [\n          [labels.when, fmtWhen(apt.start_at, locale)],\n          [labels.until, fmtWhen(apt.end_at, locale)],\n          [labels.status, statusLabel(apt.status, locale)],\n        ]\n      : [\n          [labels.event, event || (data && data.workflow)],\n          [labels.appointment, apt.id],\n          [labels.client, apt.client_name],\n          [labels.email, apt.client_email],\n          [labels.when, fmtWhen(apt.start_at, locale)],\n          [labels.status, statusLabel(apt.status, locale)],\n          [labels.previous, fmtWhen(data && data.previousStartAt, locale)],\n          [labels.reason, data && (data.reason || data.errorMessage)],\n          [labels.destination, data && data.targetWebhook],\n        ];\n\n  const extraNote =\n    kind === \"client\"\n      ? \"\"\n      : isError\n        ? '<p style=\"margin:16px 0 0;font-family:' +\n          FONT_BODY +\n          ';font-size:13px;line-height:1.55;color:#FFFFFF;\">' +\n          esc((data && (data.reason || data.error || data.errorMessage)) || \"Error no especificado.\") +\n          \"</p>\"\n        : \"\";\n\n  const logo = asset(env, \"/brand/logo-email-light.png\");\n  const footerLogo = asset(env, \"/brand/logo-email-footer.png\");\n  const hero = asset(env, \"/brand/email-hero.png\");\n  const diamond = asset(env, \"/brand/email-diamond.png\");\n  const address = envStr(env, \"N8N_STUDIO_ADDRESS\", \"Bellus Lab\");\n  const unsub = envStr(env, \"N8N_UNSUBSCRIBE_URL\", url);\n\n  const html =\n    '<!DOCTYPE html><html lang=\"' +\n    locale +\n    '\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>' +\n    esc(subjectBase) +\n    \"</title><style>\" +\n    FONT_IMPORT +\n    \"</style></head>\" +\n    '<body style=\"margin:0;padding:0;background:#F3E8E6;\">' +\n    '<div style=\"display:none;max-height:0;overflow:hidden;opacity:0;color:#F3E8E6;\">' +\n    esc(preheader) +\n    \"</div>\" +\n    '<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" bgcolor=\"#F3E8E6\"><tr><td align=\"center\" style=\"padding:28px 12px;\">' +\n    '<table role=\"presentation\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:600px;max-width:600px;background-color:#1A1412;background-image:linear-gradient(180deg,#1A1412 0%,#3B2321 42%,#E6C2BF 100%);\">' +\n    '<tr><td align=\"center\" style=\"padding:40px 28px 8px;\"><a href=\"' +\n    esc(appBase(env)) +\n    '\" style=\"text-decoration:none;\"><img src=\"' +\n    esc(logo) +\n    '\" width=\"200\" alt=\"belluslab.\" style=\"display:block;border:0;width:200px;height:auto;\"></a></td></tr>' +\n    '<tr><td align=\"center\" style=\"padding:12px 32px 10px;font-family:' +\n    FONT_HEADING +\n    ';font-size:42px;line-height:1.15;letter-spacing:0.2px;color:#FFFFFF;font-weight:700;\">' +\n    headline +\n    \"</td></tr>\" +\n    '<tr><td align=\"center\" style=\"padding:8px 24px 4px;\"><img src=\"' +\n    esc(hero) +\n    '\" width=\"552\" alt=\"\" style=\"display:block;border:0;width:100%;max-width:552px;height:auto;border-radius:8px;\"></td></tr>' +\n    '<tr><td style=\"padding:22px 48px 6px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tr>' +\n    '<td style=\"border-top:1px solid #E6C2BF;font-size:0;line-height:0;\">&nbsp;</td>' +\n    '<td width=\"28\" align=\"center\" style=\"padding:0 8px;\"><img src=\"' +\n    esc(diamond) +\n    '\" width=\"14\" height=\"14\" alt=\"\" style=\"display:block;border:0;\"></td>' +\n    '<td style=\"border-top:1px solid #E6C2BF;font-size:0;line-height:0;\">&nbsp;</td>' +\n    \"</tr></table></td></tr>\" +\n    '<tr><td align=\"center\" style=\"padding:10px 48px 6px;font-family:' +\n    FONT_BODY +\n    ';font-size:16px;line-height:1.65;color:#FFFFFF;\">' +\n    esc(intro).replace(esc(name), \"<strong>\" + esc(name) + \"</strong>\") +\n    extraNote +\n    detailsTable(detailRows) +\n    \"</td></tr>\" +\n    '<tr><td align=\"center\" style=\"padding:18px 48px 36px;\"><table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\"><tr><td align=\"center\" bgcolor=\"#1A1412\" style=\"border-radius:28px;border:1px solid #B88917;\">' +\n    '<a href=\"' +\n    esc(url) +\n    '\" style=\"display:inline-block;padding:14px 34px;font-family:' +\n    FONT_BODY +\n    ';font-size:13px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#FFFFFF;text-decoration:none;\">' +\n    esc(ctaLabel) +\n    \"</a></td></tr></table></td></tr>\" +\n    '<tr><td align=\"center\" bgcolor=\"#FFFFFD\" style=\"padding:28px 24px 10px;\"><img src=\"' +\n    esc(footerLogo) +\n    '\" width=\"168\" alt=\"belluslab.\" style=\"display:block;border:0;width:168px;height:auto;\">' +\n    socialRow(env, locale) +\n    \"</td></tr>\" +\n    '<tr><td align=\"center\" bgcolor=\"#FFFFFD\" style=\"padding:8px 28px 28px;font-family:' +\n    FONT_BODY +\n    ';font-size:11px;line-height:1.6;color:#774440;\">' +\n    esc(address) +\n    '<br><a href=\"' +\n    esc(unsub) +\n    '\" style=\"color:#774440;text-decoration:underline;\">' +\n    esc(labels.unsubscribe) +\n    '</a> &nbsp;|&nbsp; <a href=\"' +\n    esc(url) +\n    '\" style=\"color:#774440;text-decoration:underline;\">' +\n    esc(labels.viewInBrowser) +\n    \"</a></td></tr>\" +\n    \"</table></td></tr></table></body></html>\";\n\n  const text = [subjectBase, \"\", intro.replace(/<br>/g, \" \"), fmtWhen(apt.start_at, locale), url, \"\", \"belluslab.\"].filter(Boolean).join(\"\\n\");\n  return { html: html, text: text, subject: subject };\n}\n\nfunction decoratePayload(env, data) {\n  const client = buildBellusEmail(env, data, \"client\");\n  const ops = buildBellusEmail(env, data, \"ops\");\n  const error = buildBellusEmail(env, Object.assign({}, data, { event: data.event || \"error\" }), \"error\");\n  return Object.assign({}, data, {\n    clientHtml: client.html,\n    clientText: client.text,\n    clientSubject: client.subject,\n    opsHtml: ops.html,\n    opsText: ops.text,\n    opsSubject: ops.subject,\n    errorHtml: error.html,\n    errorText: error.text,\n    errorSubject: error.subject,\n  });\n}\n\n\nconst env = {\n  BELLUS_APP_URL: $env.BELLUS_APP_URL,\n  NEXT_PUBLIC_APP_URL: $env.NEXT_PUBLIC_APP_URL,\n  N8N_SOCIAL_INSTAGRAM: $env.N8N_SOCIAL_INSTAGRAM,\n  N8N_SOCIAL_FACEBOOK: $env.N8N_SOCIAL_FACEBOOK,\n  N8N_SOCIAL_X: $env.N8N_SOCIAL_X,\n  N8N_SOCIAL_WHATSAPP: $env.N8N_SOCIAL_WHATSAPP,\n  N8N_STUDIO_ADDRESS: $env.N8N_STUDIO_ADDRESS,\n  N8N_UNSUBSCRIBE_URL: $env.N8N_UNSUBSCRIBE_URL\n};\nreturn [{ json: decoratePayload(env, $json) }];"
+      },
+      "id": "build-error-email-bellus-appointment-rescheduled",
+      "name": "Build branded error email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Webhook Secret",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Webhook Secret": {
+      "main": [
+        [
+          {
+            "node": "Secret Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Secret Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Standard Error Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Payload": {
+      "main": [
+        [
+          {
+            "node": "Build branded email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Starter Notification": {
+      "main": [
+        [
+          {
+            "node": "Email Starter Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Starter Notification": {
+      "main": [
+        [
+          {
+            "node": "Email al cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email al cliente": {
+      "main": [
+        [
+          {
+            "node": "Siguiente: SMS/WhatsApp nueva hora",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Standard Error Payload": {
+      "main": [
+        [
+          {
+            "node": "Build branded error email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Error Alert": {
+      "main": [
+        [
+          {
+            "node": "Email Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Error Alert": {
+      "main": [
+        [
+          {
+            "node": "Stop Unauthorized Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build branded email": {
+      "main": [
+        [
+          {
+            "node": "Slack Starter Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build branded error email": {
+      "main": [
+        [
+          {
+            "node": "Slack Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "meta": {
+    "description": "POST con N8N_WEBHOOK_APPOINTMENT_RESCHEDULED. Validación de secreto, alerta ops, email al cliente y nodo siguiente (SMS/WhatsApp). Plantilla HTML Bellus (logo, degradado carbon/rose, CTA oro). Plantilla HTML Bellus (logo, degradado carbon/rose, CTA oro). Plantilla HTML Bellus (logo, degradado carbon/rose, CTA oro). Plantilla HTML Bellus (logo, degradado carbon/rose, CTA oro)."
+  },
+  "active": false
+}
